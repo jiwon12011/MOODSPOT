@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOODSPOT — 시스템 아키텍처</title>
+<style>
+  :root {
+    --purple: #8B5CF6;
+    --purple-dark: #6D28D9;
+    --purple-light: #EDE5FF;
+    --green: #10B981;
+    --blue: #3B82F6;
+    --orange: #F59E0B;
+    --red: #EF4444;
+    --pink: #EC4899;
+    --dark: #0D0B1E;
+    --gray: #64748B;
+    --border: #E2D9F7;
+    --white: #FFFFFF;
+    --bg: #F8F6FF;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+    background: var(--bg);
+    color: #1A1A2E;
+    min-height: 100vh;
+  }
+
+  /* TOPBAR */
+  .topbar {
+    background: var(--dark);
+    padding: 18px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .topbar-logo {
+    font-size: 18px;
+    font-weight: 900;
+    color: white;
+  }
+
+  .topbar-logo span {
+    background: linear-gradient(135deg, #A78BFA, #F472B6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .topbar-nav { display: flex; gap: 12px; }
+
+  .btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-ghost {
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.7);
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+
+  .btn-ghost:hover { background: rgba(255,255,255,0.14); color: white; }
+
+  .btn-purple {
+    background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+    color: white;
+  }
+
+  .btn-purple:hover { opacity: 0.9; }
+
+  /* MAIN */
+  .main {
+    padding: 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .page-header h1 {
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    margin-bottom: 10px;
+  }
+
+  .page-header p {
+    font-size: 15px;
+    color: var(--gray);
+  }
+
+  /* LEGEND */
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--gray);
+    font-weight: 500;
+  }
+
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+  }
+
+  /* ARCH DIAGRAM */
+  .arch-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* LAYER */
+  .layer {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 32px;
+    position: relative;
+  }
+
+  .layer-label {
+    position: absolute;
+    top: -13px;
+    left: 24px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 14px;
+    border-radius: 100px;
+    border: 1.5px solid;
+  }
+
+  .layer-client .layer-label { background: #EFF6FF; color: #2563EB; border-color: #BFDBFE; }
+  .layer-gateway .layer-label { background: #F5F0FF; color: #7C3AED; border-color: #DDD6FE; }
+  .layer-services .layer-label { background: #ECFDF5; color: #059669; border-color: #A7F3D0; }
+  .layer-data .layer-label { background: #FFFBEB; color: #D97706; border-color: #FDE68A; }
+  .layer-external .layer-label { background: #FFF1F2; color: #E11D48; border-color: #FECDD3; }
+
+  /* NODE ROW */
+  .node-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  /* NODE */
+  .node {
+    flex: 1;
+    min-width: 160px;
+    border-radius: 14px;
+    padding: 18px 20px;
+    border: 1.5px solid;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: default;
+  }
+
+  .node:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  }
+
+  .node-icon { font-size: 22px; margin-bottom: 10px; display: block; }
+
+  .node-name {
+    font-size: 14px;
+    font-weight: 800;
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+
+  .node-tech {
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    opacity: 0.7;
+  }
+
+  .node-desc {
+    font-size: 12px;
+    line-height: 1.6;
+    opacity: 0.75;
+  }
+
+  .node-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 100px;
+    margin-top: 8px;
+  }
+
+  /* Node variants */
+  .node-blue { background: #EFF6FF; border-color: #BFDBFE; color: #1D4ED8; }
+  .node-blue .node-tag { background: #DBEAFE; color: #1D4ED8; }
+
+  .node-purple { background: #F5F0FF; border-color: #DDD6FE; color: #6D28D9; }
+  .node-purple .node-tag { background: #EDE5FF; color: #6D28D9; }
+
+  .node-green { background: #ECFDF5; border-color: #A7F3D0; color: #065F46; }
+  .node-green .node-tag { background: #D1FAE5; color: #065F46; }
+
+  .node-orange { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
+  .node-orange .node-tag { background: #FEF3C7; color: #92400E; }
+
+  .node-red { background: #FFF1F2; border-color: #FECDD3; color: #9F1239; }
+  .node-red .node-tag { background: #FFE4E6; color: #9F1239; }
+
+  .node-gray { background: #F8FAFC; border-color: #E2E8F0; color: #374151; }
+  .node-gray .node-tag { background: #F1F5F9; color: #374151; }
+
+  .node-dark { background: #1E1B2E; border-color: #3D2E6B; color: #E2D9F7; }
+  .node-dark .node-tag { background: rgba(139,92,246,0.3); color: #C4B5FD; }
+
+  /* ARROWS between layers */
+  .arrow-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  .arrow-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    max-width: 200px;
+  }
+
+  .arrow-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray);
+    background: white;
+    padding: 3px 10px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+  }
+
+  .arrow-svg { color: var(--gray); }
+
+  /* DATA FLOW SECTION */
+  .flow-section {
+    background: var(--dark);
+    border-radius: 20px;
+    padding: 32px;
+    margin-top: 24px;
+  }
+
+  .flow-section h2 {
+    font-size: 18px;
+    font-weight: 800;
+    color: white;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .flow-steps {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .flow-node {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(167,139,250,0.25);
+    border-radius: 14px;
+    padding: 14px 18px;
+    text-align: center;
+    min-width: 120px;
+  }
+
+  .flow-node .f-emoji { font-size: 20px; margin-bottom: 8px; display: block; }
+  .flow-node .f-name { font-size: 12px; font-weight: 700; color: white; }
+  .flow-node .f-sub { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 3px; }
+
+  .flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 8px;
+    gap: 3px;
+  }
+
+  .flow-arrow-line {
+    width: 40px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(139,92,246,0.5), rgba(167,139,250,0.8));
+    position: relative;
+  }
+
+  .flow-arrow-line::after {
+    content: '▶';
+    position: absolute;
+    right: -8px;
+    top: -7px;
+    font-size: 10px;
+    color: #A78BFA;
+  }
+
+  .flow-arrow-label {
+    font-size: 9px;
+    color: rgba(255,255,255,0.3);
+    white-space: nowrap;
+  }
+
+  /* TECH SUMMARY */
+  .tech-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .tech-card {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+  .tech-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gray);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .tech-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #F5F0FF;
+    font-size: 13px;
+    color: #1A1A2E;
+  }
+
+  .tech-item:last-child { border-bottom: none; }
+  .tech-item .ti-icon { font-size: 15px; width: 22px; text-align: center; flex-shrink: 0; }
+  .tech-item .ti-name { font-weight: 600; }
+  .tech-item .ti-sub { font-size: 11px; color: var(--gray); }
+
+  /* COST BADGES */
+  .cost-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    align-items: center;
+  }
+
+  .cost-label { font-size: 14px; font-weight: 700; color: var(--gray); flex: none; }
+
+  .cost-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .cb-green { background: #ECFDF5; color: #059669; }
+  .cb-blue { background: #EFF6FF; color: #2563EB; }
+  .cb-purple { background: #F5F0FF; color: #7C3AED; }
+  .cb-orange { background: #FFFBEB; color: #D97706; }
+
+  @media (max-width: 768px) {
+    .main { padding: 20px; }
+    .node-row { flex-direction: column; }
+    .node { min-width: 100%; }
+    .tech-summary { grid-template-columns: 1fr 1fr; }
+    .topbar { padding: 14px 20px; }
+    .topbar-nav { display: none; }
+    .flow-steps { gap: 0; }
+  }
+
+  @media print {
+    .topbar { display: none; }
+    body { background: white; }
+    .layer, .node { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-logo">MOOD<span>SPOT</span> <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.4);margin-left:8px;">시스템 아키텍처</span></div>
+  <div class="topbar-nav">
+    <a href="landing.html" class="btn btn-ghost">🌐 랜딩페이지</a>
+    <a href="guide.html" class="btn btn-ghost">📋 제작 가이드</a>
+    <button class="btn btn-purple" onclick="window.print()">🖨️ PDF 저장</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="page-header">
+    <h1>🏗️ MOODSPOT 시스템 아키텍처</h1>
+    <p>클라이언트 → API 게이트웨이 → 서비스 → 데이터 → 외부 API 전체 구조</p>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#3B82F6;"></div>클라이언트</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8B5CF6;"></div>API 게이트웨이</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#10B981;"></div>내부 서비스</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#F59E0B;"></div>데이터 저장소</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#EF4444;"></div>외부 API</div>
+  </div>
+
+  <div class="arch-diagram">
+
+    <!-- LAYER 1: CLIENT -->
+    <div class="layer layer-client">
+      <div class="layer-label">Client Layer — 사용자 접점</div>
+      <div class="node-row">
+        <div class="node node-blue">
+          <span class="node-icon">📱</span>
+          <div class="node-name">iOS 앱</div>
+          <div class="node-tech">React Native + Expo</div>
+          <div class="node-desc">감정 입력, AI 대화, 코스 탐색, 지도 화면</div>
+          <span class="node-tag">App Store</span>
+        </div>
+        <div class="node node-blue">
+          <span class="node-icon">🤖</span>
+          <div class="node-name">Android 앱</div>
+          <div class="node-tech">React Native + Expo</div>
+          <div class="node-desc">동일한 코드베이스로 iOS/Android 동시 배포</div>
+          <span class="node-tag">Google Play</span>
+        </div>
+        <div class="node node-blue">
+          <span class="node-icon">🌐</span>
+          <div class="node-name">랜딩페이지</div>
+          <div class="node-tech">Next.js + Vercel</div>
+          <div class="node-desc">홍보용 웹페이지, SEO 최적화, 앱 다운로드 유도</div>
+          <span class="node-tag">Vercel (무료)</span>
+        </div>
+        <div class="node node-blue">
+          <span class="node-icon">📊</span>
+          <div class="node-name">관리자 대시보드</div>
+          <div class="node-tech">Next.js /admin</div>
+          <div class="node-desc">통계, 사용자 관리, 장소 관리, 홍보 기능</div>
+          <span class="node-tag">내부 전용</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARROW 1 -->
+    <div class="arrow-row">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+          <path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#A78BFA" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span style="font-size:11px;color:#8B5CF6;font-weight:600;background:white;padding:2px 10px;border-radius:100px;border:1px solid #EDE5FF;">HTTPS / REST API + WebSocket</span>
+        <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+          <path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#A78BFA" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- LAYER 2: API GATEWAY -->
+    <div class="layer layer-gateway">
+      <div class="layer-label">API Gateway — 요청 처리 + 인증</div>
+      <div class="node-row">
+        <div class="node node-purple" style="flex:2;">
+          <span class="node-icon">🔀</span>
+          <div class="node-name">NestJS API 서버</div>
+          <div class="node-tech">Node.js + TypeScript + Railway</div>
+          <div class="node-desc">
+            모든 API 요청의 진입점. JWT 인증 검사, 요청 라우팅, Rate Limiting, 요청/응답 로깅 처리.
+          </div>
+          <span class="node-tag">메인 서버</span>
+        </div>
+        <div class="node node-purple">
+          <span class="node-icon">🔐</span>
+          <div class="node-name">인증 서버</div>
+          <div class="node-tech">Supabase Auth</div>
+          <div class="node-desc">이메일/소셜 로그인, JWT 토큰 발급, 세션 관리</div>
+          <span class="node-tag">OAuth 2.0</span>
+        </div>
+        <div class="node node-purple">
+          <span class="node-icon">⚡</span>
+          <div class="node-name">WebSocket 서버</div>
+          <div class="node-tech">Socket.IO</div>
+          <div class="node-desc">AI 감정 대화 실시간 스트리밍, 타이핑 인디케이터</div>
+          <span class="node-tag">실시간</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARROW 2 -->
+    <div class="arrow-row">
+      <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+        <path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#10B981" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span style="font-size:11px;color:#059669;font-weight:600;background:white;padding:2px 10px;border-radius:100px;border:1px solid #A7F3D0;">내부 서비스 호출</span>
+      <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+        <path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#10B981" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <!-- LAYER 3: SERVICES -->
+    <div class="layer layer-services">
+      <div class="layer-label">Service Layer — 핵심 비즈니스 로직</div>
+      <div class="node-row">
+        <div class="node node-green">
+          <span class="node-icon">💬</span>
+          <div class="node-name">감정 분석 서비스</div>
+          <div class="node-tech">Claude API 연동</div>
+          <div class="node-desc">자연어 감정 분석, 강도 측정, 공감 메시지 생성</div>
+          <span class="node-tag">/emotion</span>
+        </div>
+        <div class="node node-green">
+          <span class="node-icon">🎭</span>
+          <div class="node-name">추천 서비스</div>
+          <div class="node-tech">Claude API + 규칙 엔진</div>
+          <div class="node-desc">감정 → 문화 처방 변환, 장소 필터링, AI Insight 생성</div>
+          <span class="node-tag">/recommend</span>
+        </div>
+        <div class="node node-green">
+          <span class="node-icon">🗺️</span>
+          <div class="node-name">코스 생성 서비스</div>
+          <div class="node-tech">Claude API + 경로 최적화</div>
+          <div class="node-desc">장소 배열 → 타임라인 코스, 동선 최적화, 소요시간 계산</div>
+          <span class="node-tag">/courses</span>
+        </div>
+        <div class="node node-green">
+          <span class="node-icon">📍</span>
+          <div class="node-name">장소 서비스</div>
+          <div class="node-tech">카카오맵 API 연동</div>
+          <div class="node-desc">장소 검색, 위치 정보, 경로 안내, 감정 태그 매핑</div>
+          <span class="node-tag">/places</span>
+        </div>
+        <div class="node node-green">
+          <span class="node-icon">👥</span>
+          <div class="node-name">커뮤니티 서비스</div>
+          <div class="node-tech">REST API</div>
+          <div class="node-desc">코스 공유, 좋아요, 저장, 댓글, 피드 생성</div>
+          <span class="node-tag">/community</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARROW 3 -->
+    <div class="arrow-row">
+      <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+        <path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span style="font-size:11px;color:#D97706;font-weight:600;background:white;padding:2px 10px;border-radius:100px;border:1px solid #FDE68A;">데이터 읽기 / 쓰기</span>
+      <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+        <path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <!-- LAYER 4: DATA -->
+    <div class="layer layer-data">
+      <div class="layer-label">Data Layer — 저장소</div>
+      <div class="node-row">
+        <div class="node node-orange" style="flex:2;">
+          <span class="node-icon">🐘</span>
+          <div class="node-name">PostgreSQL (메인 DB)</div>
+          <div class="node-tech">Supabase → AWS RDS</div>
+          <div class="node-desc">
+            users, emotion_logs, places, courses, community_courses, user_preferences 테이블 저장. 영구 데이터 관리.
+          </div>
+          <span class="node-tag">메인 저장소</span>
+        </div>
+        <div class="node node-orange">
+          <span class="node-icon">🔴</span>
+          <div class="node-name">Redis (캐시)</div>
+          <div class="node-tech">ElastiCache / Upstash</div>
+          <div class="node-desc">AI 추천 결과 1시간 캐싱, 로그인 세션, 실시간 인기 코스</div>
+          <span class="node-tag">캐시 / 세션</span>
+        </div>
+        <div class="node node-orange">
+          <span class="node-icon">🗂️</span>
+          <div class="node-name">파일 저장소</div>
+          <div class="node-tech">AWS S3 + CloudFront CDN</div>
+          <div class="node-desc">장소 이미지, 사용자 프로필 사진, 코스 커버 이미지 저장 및 CDN 배포</div>
+          <span class="node-tag">이미지 / 파일</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARROW 4 -->
+    <div class="arrow-row">
+      <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+        <path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span style="font-size:11px;color:#DC2626;font-weight:600;background:white;padding:2px 10px;border-radius:100px;border:1px solid #FECDD3;">외부 API 호출</span>
+      <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+        <path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <!-- LAYER 5: EXTERNAL -->
+    <div class="layer layer-external">
+      <div class="layer-label">External API Layer — 외부 서비스</div>
+      <div class="node-row">
+        <div class="node node-red">
+          <span class="node-icon">🧠</span>
+          <div class="node-name">Claude API</div>
+          <div class="node-tech">Anthropic (claude-sonnet-4-6)</div>
+          <div class="node-desc">감정 분석, 공감 대화, 문화 처방, 코스 설명, AI Insight 생성. Prompt Caching 적용.</div>
+          <span class="node-tag">핵심 AI</span>
+        </div>
+        <div class="node node-red">
+          <span class="node-icon">🗺️</span>
+          <div class="node-name">카카오맵 API</div>
+          <div class="node-tech">Kakao Developers</div>
+          <div class="node-desc">장소 검색, 좌표 변환, 경로 안내, 지도 렌더링. 월 30만건 무료.</div>
+          <span class="node-tag">지도</span>
+        </div>
+        <div class="node node-red">
+          <span class="node-icon">🔔</span>
+          <div class="node-name">푸시 알림</div>
+          <div class="node-tech">Firebase FCM</div>
+          <div class="node-desc">개인화 알림, 마케팅 푸시, 이벤트 공지. iOS/Android 통합 발송.</div>
+          <span class="node-tag">알림</span>
+        </div>
+        <div class="node node-red">
+          <span class="node-icon">📊</span>
+          <div class="node-name">분석 / 모니터링</div>
+          <div class="node-tech">Sentry + Mixpanel</div>
+          <div class="node-desc">에러 실시간 감지(Sentry), 사용자 행동 분석(Mixpanel), AI 비용 추적</div>
+          <span class="node-tag">옵저버빌리티</span>
+        </div>
+        <div class="node node-red">
+          <span class="node-icon">📧</span>
+          <div class="node-name">이메일</div>
+          <div class="node-tech">Resend / SendGrid</div>
+          <div class="node-desc">회원가입 인증, 비밀번호 재설정, 마케팅 뉴스레터 발송</div>
+          <span class="node-tag">트랜잭셔널</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- DATA FLOW -->
+  <div class="flow-section">
+    <h2>🔄 핵심 데이터 흐름 — 감정 입력부터 코스 완성까지</h2>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-node">
+          <span class="f-emoji">💬</span>
+          <div class="f-name">감정 입력</div>
+          <div class="f-sub">사용자 자연어</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <span class="flow-arrow-label">HTTPS</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-node">
+          <span class="f-emoji">🔀</span>
+          <div class="f-name">API Gateway</div>
+          <div class="f-sub">JWT 인증 확인</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <span class="flow-arrow-label">내부 호출</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-node">
+          <span class="f-emoji">🧠</span>
+          <div class="f-name">Claude API</div>
+          <div class="f-sub">감정 분석 + 처방</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <span class="flow-arrow-label">JSON 응답</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-node">
+          <span class="f-emoji">📍</span>
+          <div class="f-name">카카오맵</div>
+          <div class="f-sub">장소 검색 + 좌표</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <span class="flow-arrow-label">장소 목록</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-node">
+          <span class="f-emoji">🗺️</span>
+          <div class="f-name">코스 생성</div>
+          <div class="f-sub">타임라인 배열</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <span class="flow-arrow-label">DB 저장</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-node">
+          <span class="f-emoji">🔴</span>
+          <div class="f-name">Redis 캐싱</div>
+          <div class="f-sub">1시간 캐시</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <span class="flow-arrow-label">응답 반환</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-node">
+          <span class="f-emoji">✅</span>
+          <div class="f-name">앱 화면 표시</div>
+          <div class="f-sub">코스 + 지도 완성</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TECH SUMMARY -->
+  <div class="tech-summary">
+    <div class="tech-card">
+      <h3>📱 앱</h3>
+      <div class="tech-item"><span class="ti-icon">⚛️</span><div><div class="ti-name">React Native</div><div class="ti-sub">iOS + Android</div></div></div>
+      <div class="tech-item"><span class="ti-icon">📦</span><div><div class="ti-name">Expo</div><div class="ti-sub">빠른 개발</div></div></div>
+      <div class="tech-item"><span class="ti-icon">🗺️</span><div><div class="ti-name">react-native-maps</div><div class="ti-sub">지도 컴포넌트</div></div></div>
+      <div class="tech-item"><span class="ti-icon">🔷</span><div><div class="ti-name">TypeScript</div><div class="ti-sub">타입 안정성</div></div></div>
+    </div>
+
+    <div class="tech-card">
+      <h3>🖥️ 백엔드</h3>
+      <div class="tech-item"><span class="ti-icon">🟢</span><div><div class="ti-name">NestJS</div><div class="ti-sub">API 서버</div></div></div>
+      <div class="tech-item"><span class="ti-icon">🔷</span><div><div class="ti-name">TypeScript</div><div class="ti-sub">타입 공유</div></div></div>
+      <div class="tech-item"><span class="ti-icon">⚡</span><div><div class="ti-name">Socket.IO</div><div class="ti-sub">실시간 대화</div></div></div>
+      <div class="tech-item"><span class="ti-icon">🐳</span><div><div class="ti-name">Docker</div><div class="ti-sub">컨테이너</div></div></div>
+    </div>
+
+    <div class="tech-card">
+      <h3>🗄️ 데이터</h3>
+      <div class="tech-item"><span class="ti-icon">🐘</span><div><div class="ti-name">PostgreSQL</div><div class="ti-sub">메인 DB</div></div></div>
+      <div class="tech-item"><span class="ti-icon">🔴</span><div><div class="ti-name">Redis</div><div class="ti-sub">캐시</div></div></div>
+      <div class="tech-item"><span class="ti-icon">🗂️</span><div><div class="ti-name">AWS S3</div><div class="ti-sub">파일 저장</div></div></div>
+      <div class="tech-item"><span class="ti-icon">🔶</span><div><div class="ti-name">Supabase</div><div class="ti-sub">초기 BaaS</div></div></div>
+    </div>
+
+    <div class="tech-card">
+      <h3>☁️ 인프라</h3>
+      <div class="tech-item"><span class="ti-icon">▲</span><div><div class="ti-name">Vercel</div><div class="ti-sub">웹/관리자</div></div></div>
+      <div class="tech-item"><span class="ti-icon">🚂</span><div><div class="ti-name">Railway</div><div class="ti-sub">API 서버</div></div></div>
+      <div class="tech-item"><span class="ti-icon">🌩️</span><div><div class="ti-name">AWS</div><div class="ti-sub">성장 후 이전</div></div></div>
+      <div class="tech-item"><span class="ti-icon">🔄</span><div><div class="ti-name">GitHub Actions</div><div class="ti-sub">CI/CD</div></div></div>
+    </div>
+  </div>
+
+  <!-- COST ROW -->
+  <div class="cost-row">
+    <span class="cost-label">💰 월 예상 비용</span>
+    <span class="cost-badge cb-green">🥚 초기 (~1천명): $16~36/월</span>
+    <span class="cost-badge cb-blue">🐣 성장 (~1만명): $157~257/월</span>
+    <span class="cost-badge cb-purple">🚀 카카오맵: 30만건 무료</span>
+    <span class="cost-badge cb-orange">🧠 Claude API: Prompt Caching으로 90% 절감</span>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -78,6 +78,7 @@ MOODSPOT은 **감정 기반 AI 문화 큐레이션 모바일 앱**입니다.
 
 | 파일 | 설명 | 바로보기 |
 |------|------|---------|
+| `moodspot-app.html` | 📱 **모바일 앱 UI (10개 화면)** | [📱 앱 열기](https://jiwon12011.github.io/MOODSPOT/moodspot-app.html) |
 | `landing.html` | 홍보용 랜딩페이지 | [🌐 열기](https://jiwon12011.github.io/MOODSPOT/landing.html) |
 | `guide.html` | 전체 제작 설명서 (PDF 저장 가능) | [📋 열기](https://jiwon12011.github.io/MOODSPOT/guide.html) |
 | `architecture.html` | 시스템 아키텍처 다이어그램 | [🏗️ 열기](https://jiwon12011.github.io/MOODSPOT/architecture.html) |

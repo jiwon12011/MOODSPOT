@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MOODSPOT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+body {
+  background: #D8D0F8;
+  font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+#root {
+  width: 100%;
+  max-width: 390px;
+  min-height: 100vh;
+  background: #FAFAFE;
+  position: relative;
+  overflow-x: hidden;
+  box-shadow: 0 0 60px rgba(0,0,0,0.2);
+}
+.screen-wrap {
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 72px;
+}
+.screen-wrap::-webkit-scrollbar { display: none; }
+.full-screen {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.slide-in { animation: slideIn 0.22s ease-out; }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+input, textarea { outline: none; font-family: inherit; }
+button { font-family: inherit; }
+.map-bg {
+  background: linear-gradient(135deg, #E8E3F8 0%, #EAF0FF 50%, #E4EAF8 100%);
+  position: relative;
+  overflow: hidden;
+}
+.map-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(150,140,200,0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150,140,200,0.12) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+/* ── TOKENS ── */
+const C = {
+  primary:   '#7C72E3',
+  primaryD:  '#6558D8',
+  primaryL:  '#EDEAFF',
+  primaryM:  '#C4BEFF',
+  bg:        '#FAFAFE',
+  card:      '#FFFFFF',
+  border:    '#EBEBF8',
+  textDark:  '#1A1833',
+  textGray:  '#94A3B8',
+  textLight: '#B8C0CC',
+  pink:      '#FDA4AF',
+};
+
+/* ── STATUS BAR ── */
+const StatusBar = ({ dark }) => (
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+    padding:'14px 22px 6px',color: dark ? 'rgba(255,255,255,0.8)' : C.textDark}}>
+    <span style={{fontSize:13,fontWeight:700}}>9:41</span>
+    <div style={{display:'flex',gap:5,alignItems:'center',fontSize:12}}>
+      <span>●●●</span><span>WiFi</span><span>🔋</span>
+    </div>
+  </div>
+);
+
+/* ── TAG ── */
+const Tag = ({ children }) => (
+  <span style={{background:C.primaryL,color:C.primary,fontSize:11,fontWeight:600,
+    padding:'3px 9px',borderRadius:100,display:'inline-block',lineHeight:1.4}}>
+    {children}
+  </span>
+);
+
+/* ── CHIP ── */
+const Chip = ({ label, active, onClick }) => (
+  <button onClick={onClick} style={{
+    background: active ? C.primary : C.card,
+    color: active ? '#fff' : C.textGray,
+    border: `1.5px solid ${active ? C.primary : C.border}`,
+    borderRadius:100, padding:'7px 16px', fontSize:13, fontWeight:600,
+    cursor:'pointer', whiteSpace:'nowrap', transition:'all 0.15s',
+  }}>{label}</button>
+);
+
+/* ── BACK BUTTON ── */
+const BackBtn = ({ onBack, dark }) => (
+  <button onClick={onBack} style={{background:'none',border:'none',cursor:'pointer',
+    padding:'4px 4px 4px 0',display:'flex',alignItems:'center'}}>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M15 18l-6-6 6-6" stroke={dark?'#fff':C.textDark} strokeWidth="2.2"
+        strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  </button>
+);
+
+/* ── TAB BAR ── */
+const tabs = [
+  { id:'home',     label:'홈',
+    icon:(a)=><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 12L12 3l9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" stroke={a?C.primary:C.textLight} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+  { id:'recommend',label:'추천',
+    icon:(a)=><svg width="22" height="22" viewBox="0 0 24 24" fill={a?C.primary:'none'}><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke={a?C.primary:C.textLight} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+  { id:'map',      label:'지도',
+    icon:(a)=><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke={a?C.primary:C.textLight} strokeWidth="2"/><circle cx="12" cy="10" r="3" stroke={a?C.primary:C.textLight} strokeWidth="2"/></svg> },
+  { id:'courses',  label:'추천코스',
+    icon:(a)=><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-1.447-.894L15 9m0 8V9M9 7l6 2" stroke={a?C.primary:C.textLight} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+  { id:'mypage',   label:'마이페이지',
+    icon:(a)=><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke={a?C.primary:C.textLight} strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="7" r="4" stroke={a?C.primary:C.textLight} strokeWidth="2"/></svg> },
+];
+
+const TabBar = ({ current, onChange }) => (
+  <div style={{
+    position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)',
+    width:'100%', maxWidth:390, background:'#fff',
+    borderTop:`1px solid ${C.border}`, display:'flex',
+    padding:'10px 0 20px', zIndex:100,
+    boxShadow:'0 -4px 16px rgba(0,0,0,0.06)',
+  }}>
+    {tabs.map(t => (
+      <button key={t.id} onClick={() => onChange(t.id)} style={{
+        flex:1, display:'flex', flexDirection:'column', alignItems:'center',
+        gap:4, background:'none', border:'none', cursor:'pointer',
+        color: current===t.id ? C.primary : C.textLight,
+      }}>
+        {t.icon(current===t.id)}
+        <span style={{fontSize:10, fontWeight: current===t.id ? 700 : 500,
+          color: current===t.id ? C.primary : C.textLight}}>{t.label}</span>
+      </button>
+    ))}
+  </div>
+);
+
+/* ══════════════════════════════════════
+   01 HOME
+══════════════════════════════════════ */
+const HomeScreen = ({ nav }) => {
+  const [input, setInput] = useState('');
+  const emotions = [
+    { label:'평온해요',       emoji:'😊', bg:'#FFF9E6', c:'#D97706' },
+    { label:'우울해요',       emoji:'😢', bg:'#EFF6FF', c:'#2563EB' },
+    { label:'스트레스에요',   emoji:'😤', bg:'#FFF1F2', c:'#DC2626' },
+    { label:'힐링이 필요해요',emoji:'🌿', bg:'#F0FDF4', c:'#16A34A' },
+  ];
+  return (
+    <div className="screen-wrap" style={{background:C.bg}}>
+      <StatusBar />
+      <div style={{padding:'8px 20px 0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <span style={{fontSize:14,fontWeight:800,color:C.primary,letterSpacing:1.5}}>MOODSPOT</span>
+        <button style={{background:'none',border:'none',cursor:'pointer',padding:4}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"
+              stroke={C.textDark} strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div style={{padding:'24px 20px 20px'}}>
+        <h1 style={{fontSize:26,fontWeight:900,color:C.textDark,lineHeight:1.3,
+          letterSpacing:-0.5,marginBottom:8}}>오늘 기분이<br/>어떤가요?</h1>
+        <p style={{fontSize:14,color:C.textGray,lineHeight:1.7}}>
+          당신의 감정에 맞는 문화 경험을 추천해드릴게요</p>
+      </div>
+
+      {/* Emotion chips */}
+      <div style={{padding:'0 20px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
+        {emotions.map(e => (
+          <button key={e.label} onClick={() => nav('chat')} style={{
+            background:e.bg, border:`1.5px solid ${e.bg}`, borderRadius:16,
+            padding:'16px 14px', cursor:'pointer', display:'flex',
+            alignItems:'center', gap:10, textAlign:'left',
+          }}>
+            <span style={{fontSize:26}}>{e.emoji}</span>
+            <span style={{fontSize:13,fontWeight:600,color:e.c,lineHeight:1.3}}>{e.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div style={{padding:'0 20px 24px'}}>
+        <div style={{display:'flex',alignItems:'center',background:C.card,
+          border:`1.5px solid ${C.border}`,borderRadius:14,padding:'4px 4px 4px 16px',gap:8}}>
+          <input value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&nav('chat')}
+            placeholder="지금 기분을 입력해보세요..."
+            style={{flex:1,border:'none',background:'transparent',fontSize:14,
+              color:C.textDark,padding:'10px 0'}}/>
+          <button onClick={()=>nav('chat')} style={{
+            background:C.primary,border:'none',borderRadius:10,
+            width:40,height:40,cursor:'pointer',display:'flex',
+            alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M5 12h14M12 5l7 7-7 7" stroke="#fff" strokeWidth="2.2"
+                strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Today prescription */}
+      <div style={{padding:'0 20px 20px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <span style={{fontSize:15,fontWeight:700,color:C.textDark}}>오늘의 문화 처방</span>
+          <span onClick={()=>nav('prescription')} style={{fontSize:12,color:C.primary,fontWeight:600,cursor:'pointer'}}>더보기 &gt;</span>
+        </div>
+        <div style={{display:'flex',gap:10,overflowX:'auto',paddingBottom:4}}>
+          {[
+            {l:'몰입형 미디어아트 전시',e:'🎨',bg:'#EDE9FF'},
+            {l:'조용한 독립서점',e:'📚',bg:'#F0FDF4'},
+            {l:'한적한 북카페',e:'☕',bg:'#FFF9E6'},
+          ].map(c=>(
+            <div key={c.l} onClick={()=>nav('prescription')} style={{
+              background:c.bg,borderRadius:14,padding:'20px 14px',
+              minWidth:115,cursor:'pointer',flexShrink:0}}>
+              <div style={{fontSize:30,marginBottom:8}}>{c.e}</div>
+              <div style={{fontSize:12,fontWeight:600,color:C.textDark,lineHeight:1.4}}>{c.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Hot */}
+      <div style={{padding:'0 20px 20px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <span style={{fontSize:15,fontWeight:700,color:C.textDark}}>지금 뜨는 경험 🔥</span>
+          <span style={{fontSize:12,color:C.primary,fontWeight:600,cursor:'pointer'}}>더보기 &gt;</span>
+        </div>
+        {[
+          {t:'감성 가득한 북카페 데이트 코스',time:'3시간 10분',likes:'1.2K'},
+          {t:'혼자서도 좋은 힐링 코스',time:'2시간 40분',likes:'842'},
+        ].map((item,i)=>(
+          <div key={i} onClick={()=>nav('courseDetail')} style={{
+            background:C.card,border:`1.5px solid ${C.border}`,borderRadius:14,
+            padding:'14px 16px',marginBottom:10,cursor:'pointer',
+            display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <div style={{fontSize:14,fontWeight:600,color:C.textDark,marginBottom:4}}>{item.t}</div>
+              <div style={{fontSize:12,color:C.textGray}}>{item.time}</div>
+            </div>
+            <span style={{fontSize:13,color:C.pink,fontWeight:700}}>♥ {item.likes}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
+   02 AI CHAT
+══════════════════════════════════════ */
+const AIChatScreen = ({ nav, back }) => {
+  const [msgs, setMsgs] = useState([
+    {id:1,from:'ai',text:'오늘 많이 지치셨네요 😪\n잠시 쉬어갈 수 있는 공간을\n추천해드릴게요'},
+    {id:2,from:'user',text:'네, 조용한 곳이 좋아요'},
+    {id:3,from:'ai',text:'좋아요! 조용하고 편안하게\n마음을 회복할 수 있는\n경험을 추천할게요 🌿'},
+  ]);
+  const [input, setInput] = useState('');
+  const bottomRef = useRef(null);
+  useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:'smooth'}); },[msgs]);
+
+  const send = () => {
+    if(!input.trim()) return;
+    const text = input;
+    setInput('');
+    setMsgs(m=>[...m,{id:Date.now(),from:'user',text}]);
+    setTimeout(()=>{
+      setMsgs(m=>[...m,{id:Date.now()+1,from:'ai',text:'그렇군요! 딱 맞는 문화 경험을 찾아볼게요 ✨'}]);
+    }, 700);
+  };
+
+  return (
+    <div className="full-screen" style={{background:C.bg}}>
+      <StatusBar />
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+        padding:'8px 20px 12px',borderBottom:`1px solid ${C.border}`,background:C.card}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <BackBtn onBack={back} />
+          <div style={{width:36,height:36,borderRadius:'50%',
+            background:`linear-gradient(135deg, ${C.primary}, #A855F7)`,
+            display:'flex',alignItems:'center',justifyContent:'center',
+            color:'#fff',fontSize:15,fontWeight:800}}>M</div>
+          <div>
+            <div style={{fontSize:15,fontWeight:700,color:C.textDark}}>MOOD AI</div>
+            <div style={{fontSize:11,color:'#22C55E',display:'flex',alignItems:'center',gap:4}}>
+              <div style={{width:6,height:6,borderRadius:'50%',background:'#22C55E'}}/>온라인
+            </div>
+          </div>
+        </div>
+        <span style={{color:C.textGray,fontSize:18,cursor:'pointer'}}>···</span>
+      </div>
+
+      {/* Messages */}
+      <div style={{flex:1,overflowY:'auto',padding:'16px 16px 8px',
+        display:'flex',flexDirection:'column',gap:12}}>
+        {msgs.map(msg=>(
+          <div key={msg.id} style={{display:'flex',
+            justifyContent:msg.from==='ai'?'flex-start':'flex-end',
+            alignItems:'flex-end',gap:8}}>
+            {msg.from==='ai' && (
+              <div style={{width:30,height:30,borderRadius:'50%',flexShrink:0,
+                background:`linear-gradient(135deg, ${C.primary}, #A855F7)`,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                color:'#fff',fontSize:12,fontWeight:800}}>M</div>
+            )}
+            <div style={{
+              maxWidth:'72%',padding:'12px 14px',whiteSpace:'pre-line',
+              borderRadius:msg.from==='ai'?'4px 16px 16px 16px':'16px 4px 16px 16px',
+              background:msg.from==='ai'?C.card:C.primary,
+              color:msg.from==='ai'?C.textDark:'#fff',
+              fontSize:14,lineHeight:1.6,
+              border:msg.from==='ai'?`1.5px solid ${C.border}`:'none',
+            }}>{msg.text}</div>
+          </div>
+        ))}
+        {/* Tags */}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',padding:'4px 0'}}>
+          {['# 조용한 공간','# 힐링','# 혼자만의 시간'].map(t=>(
+            <span key={t} style={{background:C.primaryL,color:C.primary,
+              fontSize:12,fontWeight:600,padding:'4px 12px',borderRadius:100}}>{t}</span>
+          ))}
+        </div>
+        <div ref={bottomRef}/>
+      </div>
+
+      {/* Go prescription */}
+      <div style={{padding:'0 16px 10px'}}>
+        <button onClick={()=>nav('prescription')} style={{
+          width:'100%',background:C.primary,color:'#fff',border:'none',
+          borderRadius:14,padding:'14px',fontSize:15,fontWeight:700,cursor:'pointer'}}>
+          문화 처방 보기 →
+        </button>
+      </div>
+
+      {/* Input */}
+      <div style={{padding:'10px 16px 32px',borderTop:`1px solid ${C.border}`,background:C.card}}>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <input value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&send()}
+            placeholder="메시지를 입력해주세요..."
+            style={{flex:1,background:C.bg,border:`1.5px solid ${C.border}`,
+              borderRadius:12,padding:'11px 14px',fontSize:14,color:C.textDark}}/>
+          <button onClick={send} style={{
+            background:C.primary,border:'none',borderRadius:12,
+            width:44,height:44,cursor:'pointer',display:'flex',
+            alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M5 12h14M12 5l7 7-7 7" stroke="#fff" strokeWidth="2.2"
+                strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
+   03 CULTURE PRESCRIPTION
+══════════════════════════════════════ */
+const PrescriptionScreen = ({ nav, back }) => {
+  const [sel, setSel] = useState([0,1,2]);
+  const items = [
+    {type:'전시',title:'몰입형 미디어아트 전시',desc:'빛과 소리의 근간에서 온전히 몰입해보세요',e:'🎨',bg:'#EDE9FF'},
+    {type:'서점',title:'조용한 독립서점',desc:'책과 함께 사색하며 마음을 정리해보세요',e:'📚',bg:'#F0FDF4'},
+    {type:'카페',title:'한적한 북카페',desc:'따뜻한 차 한 잔과 함께 여유를 느껴보세요',e:'☕',bg:'#FFF9E6'},
+  ];
+  const toggle = i => setSel(s=>s.includes(i)?s.filter(x=>x!==i):[...s,i]);
+  return (
+    <div className="full-screen" style={{background:C.bg}}>
+      <StatusBar />
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+        padding:'8px 20px 12px',borderBottom:`1px solid ${C.border}`,background:C.card}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <BackBtn onBack={back}/>
+          <div>
+            <div style={{fontSize:17,fontWeight:800,color:C.textDark}}>오늘의 문화 처방</div>
+            <div style={{fontSize:12,color:C.textGray}}>지금 당신에게 필요한 경험이에요</div>
+          </div>
+        </div>
+        <button style={{background:'none',border:'none',cursor:'pointer',fontSize:22}}>🤍</button>
+      </div>
+
+      <div style={{flex:1,overflowY:'auto',padding:'18px 20px 0'}}>
+        {items.map((item,i)=>(
+          <div key={i} onClick={()=>toggle(i)} style={{
+            background:C.card,border:`2px solid ${sel.includes(i)?C.primary:C.border}`,
+            borderRadius:16,marginBottom:14,overflow:'hidden',cursor:'pointer',
+            transition:'border-color 0.2s'}}>
+            <div style={{background:item.bg,padding:'22px 20px',
+              display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{fontSize:42}}>{item.e}</span>
+              <div style={{
+                width:28,height:28,borderRadius:'50%',
+                background:sel.includes(i)?C.primary:'rgba(255,255,255,0.8)',
+                border:`2px solid ${sel.includes(i)?C.primary:C.border}`,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                color:'#fff',fontSize:14,fontWeight:800,transition:'all 0.2s'}}>
+                {sel.includes(i)?'✓':''}
+              </div>
+            </div>
+            <div style={{padding:'14px 18px'}}>
+              <div style={{fontSize:11,color:C.primary,fontWeight:700,marginBottom:4}}>{item.type}</div>
+              <div style={{fontSize:15,fontWeight:700,color:C.textDark,marginBottom:5}}>{item.title}</div>
+              <div style={{fontSize:13,color:C.textGray,lineHeight:1.6}}>{item.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{padding:'16px 20px 36px',borderTop:`1px solid ${C.border}`,background:C.card}}>
+        <button onClick={()=>nav('course')} style={{
+          width:'100%',background:C.primary,color:'#fff',border:'none',
+          borderRadius:14,padding:'16px',fontSize:15,fontWeight:700,cursor:'pointer'}}>
+          이 조합으로 코스 생성하기 →
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
+   04 RECOMMENDED PLACES
+══════════════════════════════════════ */
+const PlacesScreen = ({ nav }) => {
+  const [filter, setFilter] = useState('전체');
+  const filters = ['전체','전시','서점','카페','산책'];
+  const places = [
+    {name:'아르떼 뮤지엄 강남',cat:'전시 · 강남구',tags:['#몰입형','#예술','#힐링'],dist:'1.2km',likes:'1.2K',e:'🎨',type:'전시'},
+    {name:'스토리지 북멘필름',cat:'서점 · 마포구',tags:['#독립서점','#감성'],dist:'2.5km',likes:'842',e:'📚',type:'서점'},
+    {name:'카페 언더박스',cat:'카페 · 홍은구',tags:['#북카페','#조용함'],dist:'1.8km',likes:'623',e:'☕',type:'카페'},
+    {name:'경희궁 산책로',cat:'산책 · 종로구',tags:['#산책','#자연'],dist:'2.2km',likes:'1.1K',e:'🌿',type:'산책'},
+  ];
+  const filtered = filter==='전체'?places:places.filter(p=>p.type===filter);
+  return (
+    <div className="screen-wrap" style={{background:C.bg}}>
+      <StatusBar />
+      <div style={{padding:'8px 20px 14px',background:C.card,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{fontSize:18,fontWeight:800,color:C.textDark,marginBottom:14}}>추천 장소</div>
+        <div style={{display:'flex',gap:8,overflowX:'auto'}}>
+          {filters.map(f=><Chip key={f} label={f} active={filter===f} onClick={()=>setFilter(f)}/>)}
+        </div>
+      </div>
+      <div style={{padding:'16px 20px'}}>
+        {filtered.map((p,i)=>(
+          <div key={i} onClick={()=>nav('course')} style={{
+            background:C.card,border:`1.5px solid ${C.border}`,borderRadius:16,
+            padding:'14px',marginBottom:12,cursor:'pointer',
+            display:'flex',gap:14,alignItems:'center'}}>
+            <div style={{width:72,height:72,borderRadius:12,background:C.primaryL,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:32,flexShrink:0}}>{p.e}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:15,fontWeight:700,color:C.textDark,marginBottom:3}}>{p.name}</div>
+              <div style={{fontSize:12,color:C.textGray,marginBottom:7}}>{p.cat}</div>
+              <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:6}}>
+                {p.tags.map(t=><Tag key={t}>{t}</Tag>)}
+              </div>
+              <div style={{fontSize:12,color:C.textGray}}>{p.dist}</div>
+            </div>
+            <div style={{textAlign:'center',flexShrink:0}}>
+              <div style={{fontSize:18,color:C.pink}}>♥</div>
+              <div style={{fontSize:12,fontWeight:700,color:C.textGray}}>{p.likes}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
+   05 AI COURSE
+══════════════════════════════════════ */
+const CourseScreen = ({ nav, back }) => {
+  const steps = [
+    {n:1,name:'아르떼 뮤지엄 강남',sub:'몰입형 미디어아트 전시',time:'1시간 10분',e:'🎨'},
+    {n:2,name:'스토리지 북멘필름',sub:'조용한 독립서점',time:'50분',e:'📚'},
+    {n:3,name:'카페 언더박스',sub:'한적한 북카페',time:'40분',e:'☕'},
+    {n:4,name:'경희궁 산책로',sub:'산책하며 마무리',time:'40분',e:'🌿'},
+  ];
+  return (
+    <div className="full-screen" style={{background:C.bg}}>
+      <StatusBar />
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+        padding:'8px 20px 12px',borderBottom:`1px solid ${C.border}`,background:C.card}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <BackBtn onBack={back}/>
+          <div>
+            <div style={{fontSize:17,fontWeight:800,color:C.textDark}}>오늘의 힐링 코스</div>
+            <div style={{fontSize:12,color:C.textGray}}>AI가 당신을 위해 만든 하루 코스</div>
+          </div>
+        </div>
+        <div style={{background:C.primaryL,borderRadius:12,padding:'6px 12px',textAlign:'right'}}>
+          <div style={{fontSize:10,color:C.primary,fontWeight:600}}>소요시간</div>
+          <div style={{fontSize:14,fontWeight:800,color:C.primary}}>3시간 20분</div>
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:'auto',padding:'20px 20px 0'}}>
+        {steps.map((step,i)=>(
+          <div key={i} style={{display:'flex',gap:14,alignItems:'flex-start'}}>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
+              <div style={{width:40,height:40,borderRadius:'50%',background:C.primary,
+                color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',
+                fontWeight:800,fontSize:16,zIndex:1}}>{step.n}</div>
+              {i<steps.length-1&&<div style={{width:2,height:36,
+                background:`linear-gradient(180deg,${C.primary},${C.primaryL})`,marginTop:0}}/>}
+            </div>
+            <div style={{background:C.card,border:`1.5px solid ${C.border}`,borderRadius:14,
+              padding:'14px 16px',flex:1,marginBottom:i<steps.length-1?0:20,
+              display:'flex',gap:12,alignItems:'center',marginBottom:8}}>
+              <div style={{width:52,height:52,borderRadius:10,background:C.primaryL,
+                display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,flexShrink:0}}>
+                {step.e}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:15,fontWeight:700,color:C.textDark,marginBottom:3}}>{step.name}</div>
+                <div style={{fontSize:12,color:C.textGray,marginBottom:6}}>{step.sub}</div>
+                <span style={{background:C.primaryL,color:C.primary,fontSize:11,
+                  fontWeight:600,padding:'3px 10px',borderRadius:100}}>소요 {step.time}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{padding:'16px 20px 36px',background:C.card,
+        borderTop:`1px solid ${C.border}`,display:'flex',gap:10}}>
+        <button style={{flex:1,background:C.card,border:`1.5px solid ${C.border}`,
+          borderRadius:14,padding:'14px',fontSize:14,fontWeight:700,color:C.textDark,cursor:'pointer'}}>
+          코스 수정</button>
+        <button onClick={()=>nav('map')} style={{flex:2,background:C.primary,border:'none',
+          borderRadius:14,padding:'14px',fontSize:14,fontWeight:700,color:'#fff',cursor:'pointer'}}>
+          지도에서 보기 →</button>
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
+   06 MAP
+══════════════════════════════════════ */
+const MapScreen = () => {
+  const [filter, setFilter] = useState('전체');
+  const filters = ['전체','💜 힐링','🌿 조용함','활기','몰입'];
+  return (
+    <div className="full-screen" style={{background:C.bg}}>
+      <StatusBar />
+      <div style={{padding:'6px 16px 10px',background:C.card,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,
+          padding:'10px 14px',display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="8" stroke={C.textGray} strokeWidth="2"/>
+            <path d="m21 21-4.35-4.35" stroke={C.textGray} strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          <input placeholder="장소, 주소 검색" readOnly
+            style={{border:'none',background:'transparent',fontSize:14,color:C.textDark,flex:1}}/>
+        </div>
+        <div style={{display:'flex',gap:8,overflowX:'auto'}}>
+          {filters.map(f=><Chip key={f} label={f} active={filter===f} onClick={()=>setFilter(f)}/>)}
+        </div>
+      </div>
+
+      <div style={{flex:1,position:'relative',overflow:'hidden'}}>
+        <div className="map-bg" style={{width:'100%',height:'100%'}}>
+          <div className="map-grid"/>
+          {/* Roads */}
+          {[{t:'38%',h:true},{t:'62%',h:true},{l:'32%',h:false},{l:'67%',h:false}].map((r,i)=>(
+            <div key={i} style={{position:'absolute',background:'rgba(255,255,255,0.65)',borderRadius:4,
+              ...(r.h?{left:0,right:0,top:r.t,height:9}:{top:0,bottom:0,left:r.l,width:9})}}/>
+          ))}
+          {/* Place pins */}
+          {[{top:'32%',left:'30%',n:1},{top:'58%',left:'64%',n:2},
+            {top:'26%',left:'62%',n:3},{top:'68%',left:'36%',n:4}].map(d=>(
+            <div key={d.n} style={{position:'absolute',top:d.top,left:d.left,
+              width:36,height:36,borderRadius:'50%',background:C.primary,
+              color:'#fff',fontWeight:800,fontSize:15,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              boxShadow:`0 4px 14px rgba(124,114,227,0.45)`,
+              border:'3px solid #fff',transform:'translate(-50%,-50%)',zIndex:2}}>{d.n}</div>
+          ))}
+          {/* SVG path */}
+          <svg style={{position:'absolute',inset:0,width:'100%',height:'100%'}} viewBox="0 0 390 360" preserveAspectRatio="none">
+            <polyline points="117,115 249,209 242,94 140,245" fill="none"
+              stroke={C.primary} strokeWidth="2.5" strokeDasharray="7,4" opacity="0.55"/>
+          </svg>
+          {/* Action btns */}
+          <div style={{position:'absolute',right:14,top:14,display:'flex',flexDirection:'column',gap:8}}>
+            {['✎','↺'].map(ic=>(
+              <button key={ic} style={{background:C.card,border:`1.5px solid ${C.border}`,
+                borderRadius:12,width:40,height:40,cursor:'pointer',display:'flex',
+                alignItems:'center',justifyContent:'center',fontSize:17,
+                boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>{ic}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom sheet */}
+        <div style={{position:'absolute',bottom:0,left:0,right:0,background:C.card,
+          borderRadius:'20px 20px 0 0',boxShadow:'0 -4px 20px rgba(0,0,0,0.08)',
+          padding:'12px 20px 24px',zIndex:10}}>
+          <div style={{width:36,height:4,background:C.border,borderRadius:2,margin:'0 auto 14px'}}/>
+          <div style={{fontSize:13,fontWeight:700,color:C.primary,marginBottom:10}}>AI 추천 코스</div>
+          <div style={{display:'flex',alignItems:'center',gap:0}}>
+            {['전시','서점','카페','산책'].map((s,i,arr)=>(
+              <div key={s} style={{display:'flex',alignItems:'center'}}>
+                <div style={{background:C.primaryL,borderRadius:20,padding:'7px 13px',
+                  display:'flex',alignItems:'center',gap:5}}>
+                  <div style={{width:7,height:7,borderRadius:'50%',background:C.primary}}/>
+                  <span style={{fontSize:12,fontWeight:600,color:C.primary}}>{s}</span>
+                </div>
+                {i<arr.length-1&&<div style={{width:14,height:2,
+                  background:`linear-gradient(90deg,${C.primary},${C.primaryL})`,margin:'0 3px'}}/>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
+   07 COURSE LIST
+══════════════════════════════════════ */
+const CourseListScreen = ({ nav }) => {
+  const [filter, setFilter] = useState('전체');
+  const courses = [
+    {title:'감성 가득한 북카페 데이트 코스',time:'3시간 10분',dist:'4.1km',author:'라라',likes:'1.2K',best:true,e:'☕',bg:'#EDE9FF'},
+    {title:'혼자서도 좋은 힐링 코스',time:'2시간 40분',dist:'8.2km',author:'민지',likes:'842',best:false,e:'🌿',bg:'#F0FDF4'},
+    {title:'전시 보고 산책하는 하루',time:'3시간 30분',dist:'4.8km',author:'하늘',likes:'623',best:false,e:'🎨',bg:'#FFF9E6'},
+  ];
+  return (
+    <div className="screen-wrap" style={{background:C.bg}}>
+      <StatusBar />
+      <div style={{padding:'8px 20px 14px',background:C.card,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{fontSize:16,fontWeight:800,color:C.textDark,marginBottom:14}}>
+          다른 사람들이 추천하는 코스</div>
+        <div style={{display:'flex',gap:8}}>
+          {['전체','힐링','인기','최신'].map(f=>(
+            <Chip key={f} label={f} active={filter===f} onClick={()=>setFilter(f)}/>
+          ))}
+        </div>
+      </div>
+      <div style={{padding:'16px 20px'}}>
+        {courses.map((c,i)=>(
+          <div key={i} onClick={()=>nav('courseDetail')} style={{
+            background:C.card,border:`1.5px solid ${C.border}`,borderRadius:16,
+            marginBottom:14,overflow:'hidden',cursor:'pointer'}}>
+            <div style={{background:c.bg,height:130,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:54,position:'relative'}}>
+              {c.e}
+              {c.best&&<div style={{position:'absolute',top:12,left:12,
+                background:C.primary,color:'#fff',fontSize:11,fontWeight:700,
+                padding:'3px 10px',borderRadius:100}}>BEST</div>}
+            </div>
+            <div style={{padding:'14px 16px'}}>
+              <div style={{fontSize:15,fontWeight:700,color:C.textDark,marginBottom:8}}>{c.title}</div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <div style={{width:24,height:24,borderRadius:'50%',background:C.primaryL,
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                    fontSize:12,fontWeight:700,color:C.primary}}>{c.author[0]}</div>
+                  <span style={{fontSize:12,color:C.textGray}}>{c.author} · {c.time} · {c.dist}</span>
+                </div>
+                <span style={{fontSize:13,color:C.pink,fontWeight:700}}>♥ {c.likes}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
+   07-1 COURSE DETAIL
+══════════════════════════════════════ */
+const CourseDetailScreen = ({ back }) => {
+  const steps = [
+    {name:'아르떼 뮤지엄 강남',sub:'몰입형 미디어아트 전시',time:'1시간 10분',e:'🎨'},
+    {name:'스토리지 북멘필름',sub:'조용한 독립서점',time:'50분',e:'📚'},
+    {name:'카페 언더박스',sub:'한적한 북카페',time:'40분',e:'☕'},
+    {name:'경희궁 산책로',sub:'산책하며 마무리',time:'40분',e:'🌿'},
+  ];
+  return (
+    <div style={{background:C.bg,minHeight:'100vh',paddingBottom:32}}>
+      {/* Hero */}
+      <div style={{background:`linear-gradient(160deg,#2D1B69,#1A0F4C)`,padding:'0 20px 28px',position:'relative'}}>
+        <StatusBar dark/>
+        <div style={{display:'flex',justifyContent:'space-between',marginTop:8}}>
+          <button onClick={back} style={{background:'rgba(255,255,255,0.15)',border:'none',
+            borderRadius:10,width:36,height:36,cursor:'pointer',
+            display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M15 18l-6-6 6-6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <button style={{background:'rgba(255,255,255,0.15)',border:'none',borderRadius:10,
+            width:36,height:36,cursor:'pointer',color:'#fff',fontSize:16,display:'flex',
+            alignItems:'center',justifyContent:'center'}}>↗</button>
+        </div>
+        <div style={{fontSize:64,textAlign:'center',margin:'18px 0 14px'}}>☕</div>
+        <span style={{background:'rgba(124,114,227,0.35)',color:'#C4B5FD',fontSize:11,
+          fontWeight:700,padding:'3px 12px',borderRadius:100}}>BEST</span>
+        <h2 style={{fontSize:20,fontWeight:900,color:'#fff',lineHeight:1.3,margin:'10px 0 10px'}}>
+          감성 가득한 북카페 데이트 코스</h2>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:24,height:24,borderRadius:'50%',background:'rgba(255,255,255,0.2)',
+            display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:12}}>라</div>
+          <span style={{fontSize:12,color:'rgba(255,255,255,0.7)'}}>라라 · 3시간 10분 · 4.1km</span>
+          <span style={{fontSize:13,color:C.pink,marginLeft:'auto',fontWeight:700}}>♥ 1.2K</span>
+        </div>
+      </div>
+
+      <div style={{padding:'20px 20px 32px'}}>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:16}}>
+          {['#힐링','#조용함','#데이트','#카페투어'].map(t=><Tag key={t}>{t}</Tag>)}
+        </div>
+        <p style={{fontSize:14,color:C.textGray,lineHeight:1.8,marginBottom:22}}>
+          조용한 공간에서 예술과 책, 커피를 즐길 수 있는 코스에요. 마음이 복잡한 날, 자신에게 다 들어볼 수 있어요 💜
+        </p>
+        <div style={{fontSize:15,fontWeight:800,color:C.textDark,marginBottom:14}}>코스 상세</div>
+        {steps.map((s,i)=>(
+          <div key={i} style={{display:'flex',gap:12,alignItems:'flex-start',marginBottom:16}}>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
+              <div style={{width:32,height:32,borderRadius:'50%',background:C.primary,
+                color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',
+                fontWeight:700,fontSize:13}}>{i+1}</div>
+              {i<steps.length-1&&<div style={{width:2,height:26,background:C.primaryL,margin:'4px 0'}}/>}
+            </div>
+            <div style={{background:C.card,border:`1.5px solid ${C.border}`,borderRadius:12,
+              padding:'12px 14px',flex:1,display:'flex',gap:10,alignItems:'center'}}>
+              <span style={{fontSize:24}}>{s.e}</span>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:C.textDark}}>{s.name}</div>
+                <div style={{fontSize:12,color:C.textGray,marginTop:2}}>{s.sub}</div>
+                <span style={{background:C.primaryL,color:C.primary,fontSize:11,fontWeight:600,
+                  padding:'2px 8px',borderRadius:100,display:'inline-block',marginTop:5}}>{s.time}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{position:'sticky',bottom:0,padding:'16px 20px 36px',
+        background:C.card,borderTop:`1px solid ${C.border}`}}>
+        <button style={{width:'100%',background:C.primary,color:'#fff',border:'none',
+          borderRadius:14,padding:'16px',fontSize:15,fontWeight:700,cursor:'pointer'}}>
+          이 코스로 시작하기</button>
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
+   08 ANALYSIS
+══════════════════════════════════════ */
+const AnalysisScreen = () => {
+  const bars = [
+    {l:'조용함',r:'활기참',v:20},
+    {l:'몰입형',r:'가벼움',v:15},
+    {l:'혼자의 시간',r:'함께하는 시간',v:30},
+    {l:'실내 활동',r:'야외 활동',v:25},
+  ];
+  return (
+    <div className="screen-wrap" style={{background:C.bg}}>
+      <StatusBar />
+      <div style={{padding:'8px 20px 14px',background:C.card,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{fontSize:18,fontWeight:800,color:C.textDark}}>나의 문화 취향 분석</div>
+        <div style={{fontSize:12,color:C.textGray,marginTop:3}}>AI가 분석한 당신의 문화 성향이에요</div>
+      </div>
+      <div style={{padding:'20px 20px'}}>
+        {/* Type card */}
+        <div style={{background:`linear-gradient(135deg,${C.primary},#A855F7)`,
+          borderRadius:20,padding:'28px 24px',marginBottom:18,textAlign:'center',color:'#fff'}}>
+          <div style={{fontSize:50,marginBottom:12}}>🔭</div>
+          <div style={{fontSize:11,fontWeight:600,opacity:0.8,marginBottom:5}}>당신의 유형</div>
+          <div style={{fontSize:22,fontWeight:900,marginBottom:10}}>몰입형 탐험가</div>
+          <div style={{fontSize:13,opacity:0.8,lineHeight:1.7}}>깊이 있는 경험을 통해<br/>세상을 탐험하는 탐험가</div>
+        </div>
+        {/* MBTI bars */}
+        <div style={{background:C.card,border:`1.5px solid ${C.border}`,
+          borderRadius:16,padding:'20px',marginBottom:14}}>
+          <div style={{fontSize:15,fontWeight:700,color:C.textDark,marginBottom:16}}>성향 분석 (MBTI 스타일)</div>
+          {bars.map((b,i)=>(
+            <div key={i} style={{marginBottom:14}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+                <span style={{fontSize:12,fontWeight:600,color:C.primary}}>{b.l}</span>
+                <span style={{fontSize:12,color:C.textGray}}>{b.r}</span>
+              </div>
+              <div style={{height:6,borderRadius:3,background:C.primaryL,position:'relative',overflow:'hidden'}}>
+                <div style={{height:'100%',width:`${b.v}%`,borderRadius:3,
+                  background:C.primary,transition:'width 0.5s ease'}}/>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Keywords */}
+        <div style={{background:C.card,border:`1.5px solid ${C.border}`,borderRadius:16,padding:'20px'}}>
+          <div style={{fontSize:15,fontWeight:700,color:C.textDark,marginBottom:14}}>좋아하는 키워드</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+            {['#미디어아트','#독립서점','#북카페','#전시','#조용한공간','#감성공간'].map(k=>(
+              <Tag key={k}>{k}</Tag>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
+   08-1 MY PAGE
+══════════════════════════════════════ */
+const MyPageScreen = ({ nav }) => {
+  const menus = [
+    {l:'좋아요한 코스',i:'♡'},{l:'저장한 장소',i:'📍'},
+    {l:'내 후기',i:'✏️'},{l:'내가 만든 코스',i:'🗺️'},
+    {l:'설정',i:'⚙️'},{l:'공지사항',i:'📢'},{l:'고객센터',i:'💬'},
+  ];
+  return (
+    <div className="screen-wrap" style={{background:C.bg}}>
+      <StatusBar />
+      {/* Profile header */}
+      <div style={{background:`linear-gradient(160deg,${C.primary},#A855F7)`,padding:'12px 20px 28px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:18}}>
+          <div style={{width:60,height:60,borderRadius:'50%',
+            background:'rgba(255,255,255,0.2)',border:'2px solid rgba(255,255,255,0.35)',
+            display:'flex',alignItems:'center',justifyContent:'center',fontSize:28}}>🐶</div>
+          <div>
+            <div style={{fontSize:18,fontWeight:800,color:'#fff'}}>지원님</div>
+            <div style={{fontSize:12,color:'rgba(255,255,255,0.7)',marginTop:3}}>오늘도 새로운 하루 보내세요! ♥</div>
+          </div>
+        </div>
+        <div style={{background:'rgba(255,255,255,0.15)',borderRadius:14,padding:'14px',
+          display:'flex',justifyContent:'space-around'}}>
+          {[['36','방문한 장소'],['12','저장한 코스'],['24','남긴 후기']].map(([n,l])=>(
+            <div key={l} style={{textAlign:'center'}}>
+              <div style={{fontSize:22,fontWeight:900,color:'#fff'}}>{n}</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.7)',marginTop:3}}>{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{padding:'16px 20px 0'}}>
+        {/* Analysis shortcut */}
+        <div onClick={()=>nav('analysis')} style={{
+          background:`linear-gradient(135deg,${C.primaryL},#E0EEFF)`,
+          border:`1.5px solid ${C.border}`,borderRadius:14,padding:'14px 16px',
+          cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:C.primary}}>내 취향 분석 보기</div>
+            <div style={{fontSize:12,color:C.textGray,marginTop:2}}>AI가 분석한 나의 문화 성향</div>
+          </div>
+          <span style={{fontSize:22}}>📊</span>
+        </div>
+
+        {/* Menu */}
+        <div style={{background:C.card,border:`1.5px solid ${C.border}`,borderRadius:16,overflow:'hidden'}}>
+          {menus.map((m,i)=>(
+            <div key={m.l} style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+              padding:'16px 18px',borderBottom:i<menus.length-1?`1px solid ${C.border}`:'none',cursor:'pointer'}}>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <span style={{fontSize:18,width:24,textAlign:'center'}}>{m.i}</span>
+                <span style={{fontSize:14,fontWeight:500,color:C.textDark}}>{m.l}</span>
+              </div>
+              <span style={{fontSize:16,color:C.textLight}}>›</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
+   APP SHELL
+══════════════════════════════════════ */
+const App = () => {
+  const [tab,  setTab]    = useState('home');
+  const [screen, setScreen] = useState('home');
+  const [stack, setStack]   = useState(['home']);
+
+  const nav = (to) => {
+    setStack(s=>[...s, to]);
+    setScreen(to);
+  };
+  const back = () => {
+    const newStack = stack.slice(0, -1);
+    if (newStack.length === 0) return;
+    setStack(newStack);
+    setScreen(newStack[newStack.length-1]);
+  };
+  const changeTab = (t) => {
+    setTab(t); setScreen(t); setStack([t]);
+  };
+
+  const noTab = ['chat','prescription','course','courseDetail'].includes(screen);
+
+  const render = () => {
+    const p = { nav, back };
+    switch(screen) {
+      case 'home':         return <HomeScreen {...p}/>;
+      case 'chat':         return <AIChatScreen {...p}/>;
+      case 'prescription': return <PrescriptionScreen {...p}/>;
+      case 'recommend':
+      case 'places':       return <PlacesScreen {...p}/>;
+      case 'course':       return <CourseScreen {...p}/>;
+      case 'map':          return <MapScreen {...p}/>;
+      case 'courses':      return <CourseListScreen {...p}/>;
+      case 'courseDetail': return <CourseDetailScreen {...p}/>;
+      case 'analysis':     return <AnalysisScreen {...p}/>;
+      case 'mypage':       return <MyPageScreen {...p}/>;
+      default:             return <HomeScreen {...p}/>;
+    }
+  };
+
+  return (
+    <div>
+      <div className="slide-in" key={screen}>{render()}</div>
+      {!noTab && <TabBar current={tab} onChange={changeTab}/>}
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
